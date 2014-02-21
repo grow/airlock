@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ -d env ]; then
+  source env/bin/activate
+  nosetests \
+    -v \
+    --rednose \
+    --with-gae \
+    --without-sandbox \
+    --with-coverage \
+    --cover-erase \
+    --cover-html \
+    --cover-html-dir=htmlcov \
+    --cover-package=airlock \
+    airlock/
+  deactivate
+else
+  echo 'Run ./scripts/setup first.'
+  exit 1
+fi

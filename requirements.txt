@@ -1,0 +1,9 @@
+NoseGAE==0.3.0
+gaenv==0.1.7
+protorpc==0.9.1
+rednose==0.4.1
+
+# oauth2client.
+oauth2client==1.4.3
+six
+uritemplate
