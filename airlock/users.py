@@ -1,6 +1,7 @@
 from . import config as config_lib
 from oauth2client import xsrfutil
 from webapp2_extras.appengine.auth import models
+from google.appengine.ext import ndb
 
 __all__ = [
     'User',
@@ -8,9 +9,16 @@ __all__ = [
 
 
 class User(models.User):
+  session_id = ndb.StringProperty()
+
+  @property
+  def is_registered(self):
+    return self.key is not None
 
   def user_id(self):
-    return str(self.key.id())
+    if self.is_registered:
+      return str(self.key.id())
+    return self.session_id
 
   def create_xsrf_token(self):
     config = config_lib.get_config()

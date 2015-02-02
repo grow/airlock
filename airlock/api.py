@@ -1,8 +1,8 @@
 from . import config as config_lib
+from . import handlers
 from protorpc import remote
 from webapp2_extras import auth as webapp2_auth
 import Cookie
-import endpoints
 import logging
 import os
 import webapp2
@@ -51,35 +51,21 @@ class NotAuthorizedError(Error, remote.ApplicationError):
   pass
 
 
-class Service(remote.Service):
+class Service(remote.Service, handlers.BaseHandler):
 
   admin_verifier = None
 
-  @webapp2.cached_property
-  def auth(self):
+  @property
+  def request(self):
+    # Allows compatibility with handlers.BaseHandler.
     config = config_lib.get_config()
     request = webapp2.Request(environ=dict(os.environ))
     request.app = webapp2.WSGIApplication(config=config)
-    return webapp2_auth.get_auth(request=request)
-
-  @property
-  def user_model(self):
-    return self.auth.store.user_model
+    return request
 
   @webapp2.cached_property
-  def _endpoints_user(self):
-    try:
-      return endpoints.get_current_user()
-    except endpoints.InvalidGetUserCall:
-      return None  # Not inside an endpoints request.
-
-  @webapp2.cached_property
-  def me(self):
-    if self._endpoints_user is not None:
-      return self.user_model.get_by_email(self._endpoints_user.email())
-    user_dict = self.auth.get_user_by_session()
-    if user_dict:
-      return self.user_model.get_by_auth_id(str(user_dict['user_id']))
+  def auth(self):
+    return webapp2_auth.get_auth(request=self.request)
 
   def require_me(self):
     if self.me is None:
@@ -101,11 +87,11 @@ class Service(remote.Service):
     # https://www.owasp.org/index.php/
     # Cross-Site_Request_Forgery_(CSRF)_Prevention_Cheat_Sheet#Double_Submit_Cookies
     if 'X-XSRF-Token' not in headers or 'cookie' not in headers:
-      raise MissingXsrfTokenError('Missing header token.')
+      raise MissingXsrfTokenError('Missing XSRF header token.')
 
     cookie = Cookie.SimpleCookie(headers['cookie'])
     if 'xsrf_token' not in cookie:
-      raise MissingXsrfTokenError('Missing cookie token.')
+      raise MissingXsrfTokenError('Missing XSRF cookie token.')
 
     # Verify that a property of the request (the "X-XSRF-Token" header) matches
     # a cookie ("xsrf_token") included with the request. Due to the same-origin
