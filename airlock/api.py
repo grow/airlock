@@ -55,12 +55,16 @@ class Service(remote.Service, handlers.BaseHandler):
 
   admin_verifier = None
 
-  @property
+  @webapp2.cached_property
+  def app(self):
+    config = config_lib.get_config()
+    return webapp2.WSGIApplication(config=config)
+
+  @webapp2.cached_property
   def request(self):
     # Allows compatibility with handlers.BaseHandler.
-    config = config_lib.get_config()
     request = webapp2.Request(environ=dict(os.environ))
-    request.app = webapp2.WSGIApplication(config=config)
+    request.app = self.app
     return request
 
   @webapp2.cached_property
@@ -68,11 +72,11 @@ class Service(remote.Service, handlers.BaseHandler):
     return webapp2_auth.get_auth(request=self.request)
 
   def require_me(self):
-    if self.me is None:
+    if not self.me.is_registered:
       raise NotAuthorizedError('You must be logged in.')
 
   def require_admin(self):
-    if self.me is None or not self.admin_verifier(self.me.email):
+    if not self.me.is_registered or not self.admin_verifier(self.me.email):
       logging.error('User is unauthorized: {}'.format(self.me))
       raise NotAuthorizedError('Not authorized.')
 

@@ -55,11 +55,10 @@ class BaseHandler(object):
       return self.user_model.get_by_email(self._endpoints_user.email())
     user_dict = self.auth.get_user_by_session()
     if user_dict:
-      return self.user_model.get_by_auth_id(str(user_dict['user_id']))
-    logging.info(self.session)
-    logging.info(type(self.session))
-    logging.info(dir(self.session))
-    return self.user_model(session_id=str(self.session['sid']))
+      user = self.user_model.get_by_auth_id(str(user_dict['user_id']))
+      if user:
+        return user
+    return self.user_model(session_id=str(self.session.get('sid')))
 
   @webapp2.cached_property
   def urls(self):
@@ -82,7 +81,7 @@ class BaseHandler(object):
     # Create a session ID for the session if it does not have one already.
     # This is used to create an opaque string that can be passed to the OAuth2
     # authentication server via the 'state' parameter.
-    if not self.session.get('sid'):
+    if 'sid' not in self.session:
       self.session['sid'] = security.generate_random_string(entropy=128)
 
     # Add the user's credentials to the decorator if we have them.
