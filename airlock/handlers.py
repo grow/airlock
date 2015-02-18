@@ -52,7 +52,7 @@ class BaseHandler(object):
   @webapp2.cached_property
   def me(self):
     if self._endpoints_user is not None:
-      return self.user_model.get_by_email(self._endpoints_user.email())
+      return self.user_model.get_or_create_by_email(self._endpoints_user.email())
     user_dict = self.auth.get_user_by_session()
     if user_dict:
       user = self.user_model.get_by_auth_id(str(user_dict['user_id']))

@@ -42,3 +42,11 @@ class User(models.User):
     query = cls.query()
     query = query.filter(cls.email == email)
     return query.get()
+
+  @classmethod
+  def get_or_create_by_email(cls, email):
+    ent = cls.get_by_email(email)
+    if ent is None:
+      ent = cls(email=email)
+      ent.put()
+    return ent
