@@ -31,7 +31,9 @@ def allowed_user_domains_middleware(wsgi_app):
     config = config_lib.get_config()
     allowed_user_domains = config.get('allowed_user_domains')
     # If all domains are allowed, continue.
-    if allowed_user_domains is None:
+    # TODO: Make allowed paths configurable.
+    if (allowed_user_domains is None
+        or environ['PATH_INFO'].startswith('/_')):
       return wsgi_app(environ, start_response)
     user = users.get_current_user()
     # Redirect anonymous users to login.
