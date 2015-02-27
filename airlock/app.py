@@ -39,11 +39,11 @@ def allowed_user_domains_middleware(wsgi_app):
     # Redirect anonymous users to login.
     if user is None:
       url =  users.create_login_url(environ['PATH_INFO'])
-      start_response('302', [('Location', url)])
+      start_response('302 Redirect', [('Location', url)])
       return []
     # Ban forbidden users.
     if user.email().split('@')[-1] not in allowed_user_domains:
-      start_response('403', [])
+      start_response('403 Forbidden', [])
       url = users.create_logout_url(environ['PATH_INFO'])
       return ['Forbidden. <a href="{}">Sign out</a>.'.format(url)]
     return wsgi_app(environ, start_response)
