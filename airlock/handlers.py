@@ -138,8 +138,8 @@ class OAuth2CallbackHandler(Handler):
     error = self.request.get('error')
     if error:
       message = self.request.get('error_description', error)
-      text = 'Authorization request failed: {}'
-      self.response.out.write(text.format(message))
+      logging.error(message)
+      self.response.out.write('Authorization request failed.')
       return
 
     # Resume the OAuth flow.
