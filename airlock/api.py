@@ -43,7 +43,6 @@ class Service(remote.Service, handlers.BaseHandler):
       raise NotAuthorizedError('Not authorized.')
 
   def require_xsrf_protection(self):
-    self.require_me()
     if self._endpoints_user is not None:
       return  # Assume endpoints clients are XSRF-protected.
 
