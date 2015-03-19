@@ -65,10 +65,13 @@ class BaseHandler(object):
     return AuthUrls(self)
 
   @webapp2.cached_property
+  def config(self):
+    return self.app.config
+
+  @webapp2.cached_property
   def decorator(self):
-    config = self.app.config
     decorator = appengine.oauth2decorator_from_clientsecrets(
-        config['client_secrets_path'], scope=config['scopes'])
+        self.config['client_secrets_path'], scope=self.config['scopes'])
     decorator._callback_path = '/_airlock/oauth2callback'
     return decorator
 
@@ -96,6 +99,9 @@ class BaseHandler(object):
       session_user = UserStub(self.session['sid'])
       self.decorator.flow.params['state'] = appengine._build_state_value(
           self, session_user)
+
+    self.response.headers['X-XSS-Protection'] = '1; mode=block'
+    self.response.headers['X-Content-Type-Options'] = 'nosniff'
 
     try:
       webapp2.RequestHandler.dispatch(self)
@@ -197,7 +203,7 @@ class OAuth2CallbackHandler(Handler):
 class SignOutHandler(Handler):
 
   def get(self):
-    key = self.app.config['webapp2_extras.sessions']['secret_key']
+    key = self.config['webapp2_extras.sessions']['secret_key']
     redirect_url = str(self.request.get('redirect'))
     if self.me is not None:
       token = str(self.request.get('token'))
