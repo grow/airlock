@@ -11,7 +11,7 @@ import logging
 
 
 class OAuth2CallbackHandler(handlers.Handler):
-  """Callback handler for OAuth2 flow."""
+  """Callback handler for oauth2 flow."""
 
   def get(self):
     # In order to use our own User class and webapp2 sessions
@@ -26,7 +26,7 @@ class OAuth2CallbackHandler(handlers.Handler):
       self.response.out.write('Authorization request failed.')
       return
 
-    # Resume the OAuth flow.
+    # Resume the oauth flow.
     self.decorator._create_flow(self)
     credentials = self.decorator.flow.step2_exchange(self.request.params)
 
@@ -54,7 +54,7 @@ class OAuth2CallbackHandler(handlers.Handler):
         self.error(500, 'Error creating user.')
         return
 
-    # Store the User in the session.
+    # Store the user in the session.
     self.auth.set_session({'user_id': auth_id}, remember=True)
 
     session_user = users.UserStub(self.session['sid'])

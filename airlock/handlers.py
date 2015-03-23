@@ -19,6 +19,24 @@ __all__ = [
 class BaseHandler(object):
 
   @webapp2.cached_property
+  def me(self):
+    if self._endpoints_user is not None:
+      return self.user_model.get_or_create_by_email(self._endpoints_user.email())
+    user_dict = self.auth.get_user_by_session()
+    if user_dict:
+      user = self.user_model.get_by_auth_id(str(user_dict['user_id']))
+      if user:
+        return user
+    return self.user_model(session_id=str(self.session.get('sid')))
+
+  @webapp2.cached_property
+  def _endpoints_user(self):
+    try:
+      return endpoints.get_current_user()
+    except endpoints.InvalidGetUserCall:
+      return None  # Not inside an endpoints request.
+
+  @webapp2.cached_property
   def auth(self):
     return webapp2_auth.get_auth()
 
@@ -29,24 +47,6 @@ class BaseHandler(object):
   @webapp2.cached_property
   def session(self):
     return self.session_store.get_session()
-
-  @webapp2.cached_property
-  def _endpoints_user(self):
-    try:
-      return endpoints.get_current_user()
-    except endpoints.InvalidGetUserCall:
-      return None  # Not inside an endpoints request.
-
-  @webapp2.cached_property
-  def me(self):
-    if self._endpoints_user is not None:
-      return self.user_model.get_or_create_by_email(self._endpoints_user.email())
-    user_dict = self.auth.get_user_by_session()
-    if user_dict:
-      user = self.user_model.get_by_auth_id(str(user_dict['user_id']))
-      if user:
-        return user
-    return self.user_model(session_id=str(self.session.get('sid')))
 
   @webapp2.cached_property
   def urls(self):
@@ -73,27 +73,39 @@ class BaseHandler(object):
     return sessions.get_store(request=self.request)
 
   def _apply_security_headers(self, headers):
-    hsts_policy = self.config.get('policies', {})
-    hsts_policy = hsts_policy.get('hsts', config.Defaults.Policies.HSTS)
+    policies = self.config.get('policies', {})
+    hsts_policy = policies.get('hsts', config.Defaults.Policies.HSTS)
     if self.request.scheme.lower() == 'https' and hsts_policy is not None:
       include_subdomains = bool(hsts_policy.get('includeSubdomains', False))
-      subdomain_string = '; includeSubdomains' if include_subdomains else ''
-      hsts_value = 'max-age=%d%s' % (int(hsts_policy.get('max_age')),
-                                     subdomain_string)
+      subdomain = '; includeSubdomains' if include_subdomains else ''
+      hsts_value = 'max-age=%d%s' % (int(hsts_policy.get('max_age')), subdomain)
       headers['Strict-Transport-Security'] = hsts_value
-
-    headers['X-Frame-Options'] = 'SAMEORIGIN'
+    frame_options_policy = policies.get('frame_options',
+                                        config.Defaults.XFrameOptions.SAMEORIGIN)
+    if frame_options_policy is not None:
+      headers['X-Frame-Options'] = frame_options_policy
     headers['X-XSS-Protection'] = '1; mode=block'
     headers['X-Content-Type-Options'] = 'nosniff'
+
+    if 'csp' in policies and 'policy' in policies['csp']:
+      csp_policy = policies['csp']
+      policies = policies['csp']['policy']
+      header_name = 'Content-Security-Policy'
+      if csp_policy.get('report_only'):
+        header_name = 'Content-Security-Policy-Report-Only'
+      policy_items = []
+      for (key, vals) in policies.iteritems():
+        val = ' '.join(vals)
+        policy_items.append('{} {}'.format(key, val))
+      headers[header_name] =  '; '.join(policy_items)
     return headers
 
-  def _dispatch_with_session(self):
+  def _apply_session_properties(self):
     # Create a session ID for the session if it does not have one already.
     # This is used to create an opaque string that can be passed to the OAuth2
     # authentication server via the 'state' parameter.
     if self.session.get('sid', None) is None:
       self.session['sid'] = security.generate_random_string(entropy=128)
-
     # Add the user's credentials to the decorator if we have them.
     if self.me.registered:
       self.decorator.credentials = self.decorator._storage_class(
@@ -107,10 +119,13 @@ class BaseHandler(object):
       self.decorator.flow.params['state'] = appengine._build_state_value(
           self, session_user)
 
+  def initialize(self, request, response):
+    webapp2.RequestHandler.initialize(self, request, response)
+    self._apply_security_headers(response.headers)
+    self._apply_session_properties()
+
   def dispatch(self):
-    """Wraps the dispatch method to add session handling."""
-    self._apply_security_headers(self.response.headers)
-    self._dispatch_with_session()
+    """Wraps the dispatch method to add session support."""
     try:
       webapp2.RequestHandler.dispatch(self)
     finally:
@@ -124,10 +139,12 @@ class BaseHandler(object):
     if not self.me.registered:
       raise errors.NotAuthorizedError('You must be logged in.')
 
-  def require_admin(self):
+  def require_admin(self, admin_verifier_func=None):
+    if admin_verifier_func is None:
+      admin_verifier_func = self.admin_verifier
     if not self.me.registered:
       raise errors.NotAuthorizedError('Not authorized.')
-    if not self.admin_verifier(self.me.email):
+    if not admin_verifier_func(self.me.email):
       logging.error('User is forbidden: {}'.format(self.me))
       raise errors.ForbiddenError('Forbidden.')
 
@@ -152,3 +169,13 @@ class BaseHandler(object):
 
 class Handler(BaseHandler, webapp2.RequestHandler):
   """A request handler that supports webapp2 sessions."""
+
+#  def safe_write(self, content):
+#    return self.response.out.write(content)
+#
+#  def dispatch(self):
+#    try:
+#      return super(Handler, self).dispatch()
+#    except errors.Error as e:
+#      self.status_int = e.status
+#      self.safe_write(e.message)

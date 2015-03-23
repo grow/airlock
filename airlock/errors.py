@@ -2,10 +2,13 @@ from protorpc import remote
 
 
 class Error(Exception):
+  status = 500
+  message = 'Error'
 
   def __init__(self, message):
     super(Error, self).__init__(message)
-    self.message = message
+    if message is not None:
+      self.message = message
 
 
 class BadRequestError(Error, remote.ApplicationError):
@@ -30,6 +33,7 @@ class BadXsrfTokenError(XsrfTokenError):
 
 class NotFoundError(Error, remote.ApplicationError):
   status = 404
+  message = 'Not found.'
 
 
 class ConflictError(Error, remote.ApplicationError):
@@ -38,7 +42,9 @@ class ConflictError(Error, remote.ApplicationError):
 
 class NotAuthorizedError(Error, remote.ApplicationError):
   status = 401
+  message = 'Not authorized.'
 
 
 class ForbiddenError(Error, remote.ApplicationError):
   status = 403
+  message = 'Forbidden.'
