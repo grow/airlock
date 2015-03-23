@@ -1,31 +1,19 @@
-from apiclient import discovery
-from google.appengine.api import memcache
+from . import config
+from . import errors
+from . import urls
+from . import users
 from oauth2client import appengine
-from oauth2client import xsrfutil
 from webapp2_extras import auth as webapp2_auth
 from webapp2_extras import security
 from webapp2_extras import sessions
 import endpoints
-import httplib2
-import json
 import logging
-import urllib
 import webapp2
 
 __all__ = [
     'Handler',
 ]
 
-
-class UserStub(object):
-  """Stub user for anonymous sessions."""
-
-  def __init__(self, sid):
-    self.sid = sid
-
-  def user_id(self):
-    # Provides compatibility with oauth2client's {_build|_parse}_state_value.
-    return self.sid
 
 
 class BaseHandler(object):
@@ -62,7 +50,7 @@ class BaseHandler(object):
 
   @webapp2.cached_property
   def urls(self):
-    return AuthUrls(self)
+    return urls.AuthUrls(self)
 
   @webapp2.cached_property
   def config(self):
@@ -79,16 +67,30 @@ class BaseHandler(object):
   def session_store(self):
     return sessions.get_store(request=self.request)
 
-  def dispatch(self):
-    """Wraps the dispatch method to add session handling."""
+  def _apply_security_headers(self, headers):
+    hsts_policy = self.config.get('policies', {})
+    hsts_policy = hsts_policy.get('hsts', config.Defaults.Policies.HSTS)
+    if self.request.scheme.lower() == 'https' and hsts_policy is not None:
+      include_subdomains = bool(hsts_policy.get('includeSubdomains', False))
+      subdomain_string = '; includeSubdomains' if include_subdomains else ''
+      hsts_value = 'max-age=%d%s' % (int(hsts_policy.get('max_age')),
+                                     subdomain_string)
+      headers['Strict-Transport-Security'] = hsts_value
+
+    headers['X-Frame-Options'] = 'SAMEORIGIN'
+    headers['X-XSS-Protection'] = '1; mode=block'
+    headers['X-Content-Type-Options'] = 'nosniff'
+    return headers
+
+  def _dispatch_with_session(self):
     # Create a session ID for the session if it does not have one already.
     # This is used to create an opaque string that can be passed to the OAuth2
     # authentication server via the 'state' parameter.
-    if 'sid' not in self.session:
+    if self.session.get('sid', None) is None:
       self.session['sid'] = security.generate_random_string(entropy=128)
 
     # Add the user's credentials to the decorator if we have them.
-    if self.me.is_registered:
+    if self.me.registered:
       self.decorator.credentials = self.decorator._storage_class(
           self.decorator._credentials_class, None,
           self.decorator._credentials_property_name, user=self.me).get()
@@ -96,117 +98,52 @@ class BaseHandler(object):
       # Store the state for the session user in a parameter on the flow.
       # We only need to do this if we're not logged in.
       self.decorator._create_flow(self)
-      session_user = UserStub(self.session['sid'])
+      session_user = users.UserStub(self.session['sid'])
       self.decorator.flow.params['state'] = appengine._build_state_value(
           self, session_user)
 
-    self.response.headers['X-XSS-Protection'] = '1; mode=block'
-    self.response.headers['X-Content-Type-Options'] = 'nosniff'
-
+  def dispatch(self):
+    """Wraps the dispatch method to add session handling."""
+    self._apply_security_headers(self.response.headers)
+    self._dispatch_with_session()
     try:
       webapp2.RequestHandler.dispatch(self)
     finally:
       self.session_store.save_sessions(self.response)
 
+  def require_me(self):
+    if not self.me.registered:
+      raise errors.NotAuthorizedError('You must be logged in.')
+
+  def require_registered(self):
+    if not self.me.registered:
+      raise errors.NotAuthorizedError('You must be logged in.')
+
+  def require_admin(self):
+    if not self.me.registered:
+      raise errors.NotAuthorizedError('Not authorized.')
+    if not self.admin_verifier(self.me.email):
+      logging.error('User is forbidden: {}'.format(self.me))
+      raise errors.ForbiddenError('Forbidden.')
+
+  @staticmethod
+  def admin_required(admin_func):
+    def decorator(method):
+      def wrapped_func(*args, **kwargs):
+        self = args[0]
+        self.require_admin()
+        return method(*args, **kwargs)
+      return wrapped_func
+    return decorator
+
+  @staticmethod
+  def me_required(method):
+    def wrapped_func(*args, **kwargs):
+      self = args[0]
+      self.require_me()
+      return method(*args, **kwargs)
+    return wrapped_func
+
 
 class Handler(BaseHandler, webapp2.RequestHandler):
   """A request handler that supports webapp2 sessions."""
-
-
-class AuthUrls(object):
-
-  def __init__(self, handler):
-    self.handler = handler
-
-  def sign_in(self):
-    return self.handler.decorator.authorize_url()
-
-  def sign_out(self, redirect_url=None):
-    key = self.handler.app.config['webapp2_extras.sessions']['secret_key']
-    if redirect_url is None:
-      redirect_url = self.handler.request.url
-    token = xsrfutil.generate_token(key, self.handler.me.user_id(), action_id=redirect_url)
-    return '/_airlock/signout?{}'.format(urllib.urlencode({
-        'redirect': redirect_url,
-        'token': token,
-    }))
-
-
-class OAuth2CallbackHandler(Handler):
-  """Callback handler for OAuth2 flow."""
-
-  def get(self):
-    # In order to use our own User class and webapp2 sessions
-    # for user management instead of the App Engine Users API (which requires
-    # showing a very ugly sign in page and requires the user to authorize
-    # Google twice, essentially), we've created our own version of oauth2client's
-    # OAuth2CallbackHandler.
-    error = self.request.get('error')
-    if error:
-      message = self.request.get('error_description', error)
-      logging.error(message)
-      self.response.out.write('Authorization request failed.')
-      return
-
-    # Resume the OAuth flow.
-    self.decorator._create_flow(self)
-    credentials = self.decorator.flow.step2_exchange(self.request.params)
-
-    # Get a Google Account ID for the user that just OAuthed in.
-    http = credentials.authorize(httplib2.Http(memcache))
-    service = discovery.build('oauth2', 'v2', http=httplib2.Http(memcache))
-
-    # Keys are: name, email, given_name, family_name, link, locale, id,
-    # gender, verified_email (which is a bool), picture (url).
-    data = service.userinfo().v2().me().get().execute(http=http)
-    auth_id = 'google:{}'.format(data['id'])
-
-    # If the user is returning, try and find an existing User.
-    # If the user is signing in for the first time, create a User.
-    user = self.user_model.get_by_auth_id(auth_id)
-    if user is None:
-      nickname = data['email']
-      data.pop('id', None)
-      unique_properties = ['nickname', 'email']
-      ok, user = self.user_model.create_user(
-          auth_id, unique_properties=unique_properties, nickname=nickname,
-          **data)
-      if not ok:
-        logging.exception('Invalid values: {}'.format(user))
-        self.error(500, 'Error creating user.')
-        return
-
-    # Store the User in the session.
-    self.auth.set_session({'user_id': auth_id}, remember=True)
-
-    session_user = UserStub(self.session['sid'])
-    redirect_uri = appengine._parse_state_value(
-        str(self.request.get('state')), session_user)
-
-    # Store the user's credentials for later possible use.
-    storage = self.decorator._storage_class(
-        model=self.decorator._credentials_class,
-        key_name='user:{}'.format(user.user_id()),
-        property_name=self.decorator._credentials_property_name)
-    storage.put(credentials)
-
-    # Adjust the redirect uri in case this callback occurred as part of an
-    # authenticated request to get some data.
-    if self.decorator._token_response_param and credentials.token_response:
-      resp = json.dumps(credentials.token_response)
-      redirect_uri = appengine.util._add_query_parameter(
-          redirect_uri, self.decorator._token_response_param, resp)
-
-    self.redirect(redirect_uri)
-
-
-class SignOutHandler(Handler):
-
-  def get(self):
-    key = self.config['webapp2_extras.sessions']['secret_key']
-    redirect_url = str(self.request.get('redirect'))
-    if self.me is not None:
-      token = str(self.request.get('token'))
-      xsrfutil.validate_token(key, token, self.me.user_id(), action_id=redirect_url)
-      self.auth.unset_session()
-    self.redirect(redirect_url)

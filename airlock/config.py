@@ -2,34 +2,31 @@
 In your program's main, call `airlock.set_config` and provide
 a configuration object that follows the below format.
 
-_token_age = 60 * 60 * 24 * 7 * 1  # 1 week.
-
 AIRLOCK_CONFIG = {
     'client_secrets_path': client_secrets_path,
+    'xsrf_cookie_name': airlock.config.Defaults.Xsrf.COOKIE_NAME,
     'policies': {
-        'frame_options': '',
-        'csp': '',
-        'hsts': '',
+        'csp': airlock.config.Defaults.Policies.CSP,
+        'frame_options': airlock.config.Defaults.XFrameOptions.SAMEORIGIN,
+        'hsts': airlock.config.Defaults.Policies.HSTS,
     },
-    'scopes': [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-    ],
+    'scopes': airlock.config.Defaults.OAUTH_SCOPES,
     'webapp2_extras.auth': {
-        'token_cache_age': _token_age,
-        'token_max_age': _token_age,
-        'token_new_age': _token_age,
-        'user_model': 'path.to.user.model.subclass.User',
+        'token_cache_age': airlock.config.Defaults.Xsrf.TOKEN_AGE,
+        'token_max_age': airlock.config.Defaults.Xsrf.TOKEN_AGE,
+        'token_new_age': airlock.config.Defaults.Xsrf.TOKEN_AGE,
+        'user_model': '<path.to.user.model.subclass.User>',
     },
     'webapp2_extras.sessions': {
-        'secret_key': _secret_key,
-        'user_model': 'path.to.user.model.subclass.User',
+        'secret_key': '<secret_key>',
+        'user_model': '<path.to.user.model.subclass.User>',
     },
 }
 """
 
 __all__ = [
     'set_config',
+    'Defaults',
 ]
 
 _airlock_config = None
@@ -50,9 +47,19 @@ def get_config():
 
 class Defaults(object):
 
+  class Xsrf(object):
+    COOKIE_NAME = 'XSRF_TOKEN'
+    TOKEN_AGE = 60 * 60 * 24 * 7 * 1  # 1 week.
+
   class XFrameOptions(object):
     DENY = 'DENY'
     SAMEORIGIN = 'SAMEORIGIN'
 
-  CSP_POLICY = {'default-src': "'self'"}
-  HSTS_POLICY = {'max_age': 2592000, 'includeSubdomains': True}
+  class Policies(object):
+    CSP = None
+    HSTS = {'max_age': 2592000, 'includeSubdomains': True}
+
+  OAUTH_SCOPES = [
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
+  ]

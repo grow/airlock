@@ -8,15 +8,30 @@ __all__ = [
 ]
 
 
+class UserStub(object):
+  """Stub user for anonymous sessions."""
+
+  def __init__(self, sid):
+    self.sid = sid
+
+  def user_id(self):
+    # Provides compatibility with oauth2client's {_build|_parse}_state_value.
+    return self.sid
+
+
 class User(models.User):
   session_id = ndb.StringProperty()
+
+  @property
+  def registered(self):
+    return self.key is not None
 
   @property
   def is_registered(self):
     return self.key is not None
 
   def user_id(self):
-    if self.is_registered:
+    if self.registered:
       return str(self.key.id())
     return self.session_id
 

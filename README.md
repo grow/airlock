@@ -1,7 +1,8 @@
 # airlock
 
-A lightweight wrapper providing Google oauth2 integration, sessions,
-XSRF validators, and user management for App Engine apps.
+Airlock is a lightweight, web-security-concious wrapper for *webapp2* on
+Google App Engine. It provides oauth2 integration for identity management
+with Google Accounts, sessions, and user management.
 
 ## Comparison
 
@@ -16,9 +17,12 @@ via oauth2 and the `oauth2client` library.
 | `webapp2.RequestHandler` | `airlock.Handler` |
 | `webapp2.WSGIApplication` | `airlock.WSGIApplication` |
 
-## Usage
+## Security features
 
-TODO(jeremydw): Documentation
+* A standard configuration format for specifying the security characteristics of an application.
+* Sets *X-Frame-Options* headers.
+
+## Usage
 
 1. Download client secrets.
 1. In appengine config, use airlock.set_config

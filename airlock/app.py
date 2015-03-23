@@ -1,6 +1,6 @@
 import endpoints
 from . import config as config_lib
-from . import handlers
+from . import oauth
 import webapp2
 from google.appengine.api import users
 
@@ -10,10 +10,11 @@ __all__ = [
 ]
 
 
+
 def _get_airlock_app(config):
   return webapp2.WSGIApplication([
-      ('/_airlock/oauth2callback', handlers.OAuth2CallbackHandler),
-      ('/_airlock/signout', handlers.SignOutHandler),
+      ('/_airlock/oauth2callback', oauth.OAuth2CallbackHandler),
+      ('/_airlock/signout', oauth.SignOutHandler),
   ], config=config)
 
 

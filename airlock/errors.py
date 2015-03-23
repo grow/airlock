@@ -9,7 +9,7 @@ class Error(Exception):
 
 
 class BadRequestError(Error, remote.ApplicationError):
-  pass
+  status = 400
 
 
 class XsrfTokenError(BadRequestError):
@@ -29,12 +29,16 @@ class BadXsrfTokenError(XsrfTokenError):
 
 
 class NotFoundError(Error, remote.ApplicationError):
-  pass
+  status = 404
 
 
 class ConflictError(Error, remote.ApplicationError):
-  pass
+  status = 409
 
 
 class NotAuthorizedError(Error, remote.ApplicationError):
-  pass
+  status = 401
+
+
+class ForbiddenError(Error, remote.ApplicationError):
+  status = 403
