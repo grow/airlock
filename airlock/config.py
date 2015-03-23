@@ -36,6 +36,10 @@ class Error(Exception):
   pass
 
 
+class ConfigError(Error, ValueError):
+  pass
+
+
 def set_config(config):
   global _airlock_config
   _airlock_config = config

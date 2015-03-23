@@ -58,8 +58,13 @@ class BaseHandler(object):
 
   @webapp2.cached_property
   def decorator(self):
+    try:
+      client_secrets_path = self.config['client_secrets_path']
+    except KeyError:
+      raise config.ConfigError('Missing: client_secrets_path')
     decorator = appengine.oauth2decorator_from_clientsecrets(
-        self.config['client_secrets_path'], scope=self.config['scopes'])
+        client_secrets_path,
+        scope=self.config.get('scopes', config.Defaults.OAUTH_SCOPES))
     decorator._callback_path = '/_airlock/oauth2callback'
     return decorator
 
