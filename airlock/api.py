@@ -38,6 +38,7 @@ class Service(remote.Service, handlers.BaseHandler):
       return  # Assume endpoints clients are XSRF-protected.
 
     headers = self.__request_state.headers
+    header_token = headers.get('X-XSRF-Token')
 
     # Verify XSRF token using the "double submit cookie" strategy.
     # https://www.owasp.org/index.php/
@@ -45,21 +46,22 @@ class Service(remote.Service, handlers.BaseHandler):
     if 'X-XSRF-Token' not in headers:
       raise errors.MissingXsrfTokenError('Missing XSRF header token.')
 
-    cookie = Cookie.SimpleCookie(headers.get('cookie', ''))
-    cookie_name = self.config.get('xsrf_cookie_name',
-                                  config_lib.Defaults.Xsrf.COOKIE_NAME)
-    if cookie_name not in cookie:
-      raise errors.MissingXsrfTokenError('Missing XSRF cookie token.')
+    # Verify an XSRF cookie, if the app has opted into also using XSRF cookies.
+    if self.config.get('use_xsrf_cookie', False):
+      cookie = Cookie.SimpleCookie(headers.get('cookie', ''))
+      cookie_name = self.config.get('xsrf_cookie_name',
+                                    config_lib.Defaults.Xsrf.COOKIE_NAME)
+      if cookie_name not in cookie:
+        raise errors.MissingXsrfTokenError('Missing XSRF cookie token.')
 
-    # Verify that a property of the request (the "X-XSRF-Token" header) matches
-    # a cookie ("xsrf_token") included with the request. Due to the same-origin
-    # policy, an XSRF-attacker would not be able to read or set cookie values on
-    # our domain, preventing the attacker from submitting a cookie that maches
-    # the header.
-    cookie_token = cookie.get(cookie_name).value
-    header_token = headers.get('X-XSRF-Token')
-    if header_token != cookie_token:
-      raise errors.XsrfTokenMismatchError('XSRF token mismatch.')
+      # Verify that a property of the request (the "X-XSRF-Token" header) matches
+      # a cookie ("xsrf_token") included with the request. Due to the same-origin
+      # policy, an XSRF-attacker would not be able to read or set cookie values on
+      # our domain, preventing the attacker from submitting a cookie that maches
+      # the header.
+      cookie_token = cookie.get(cookie_name).value
+      if header_token != cookie_token:
+        raise errors.XsrfTokenMismatchError('XSRF token mismatch.')
 
     # Also, verify that the token is actually for the current user.
     if not self.me.validate_token(header_token):

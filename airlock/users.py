@@ -38,12 +38,12 @@ class User(models.User):
   def create_xsrf_token(self):
     config = config_lib.get_config()
     key = config['webapp2_extras.sessions']['secret_key']
-    return xsrfutil.generate_token(key, self.user_id)
+    return xsrfutil.generate_token(key, self.user_id())
 
   def validate_token(self, token):
     config = config_lib.get_config()
     key = config['webapp2_extras.sessions']['secret_key']
-    return xsrfutil.validate_token(key, token, self.user_id)
+    return xsrfutil.validate_token(key, token, self.user_id())
 
   def delete(self):
     name = self.__class__.__name__
