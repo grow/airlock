@@ -169,13 +169,3 @@ class BaseHandler(object):
 
 class Handler(BaseHandler, webapp2.RequestHandler):
   """A request handler that supports webapp2 sessions."""
-
-#  def safe_write(self, content):
-#    return self.response.out.write(content)
-#
-#  def dispatch(self):
-#    try:
-#      return super(Handler, self).dispatch()
-#    except errors.Error as e:
-#      self.status_int = e.status
-#      self.safe_write(e.message)
