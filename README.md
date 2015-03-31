@@ -17,10 +17,18 @@ via oauth2 and the `oauth2client` library.
 | `webapp2.RequestHandler` | `airlock.Handler` |
 | `webapp2.WSGIApplication` | `airlock.WSGIApplication` |
 
+## User features
+
+* Oauth2 integration with Google Accounts (sign in and sign out).
+* Anonymous user/session support.
+
 ## Security features
 
 * A standard configuration format for specifying the security characteristics of an application.
-* Sets *X-Frame-Options* headers.
+* Provides a framework for setting the following headers:
+  * Content security policy.
+  * HSTS policy.
+  * XSRF.
 
 ## Usage
 
