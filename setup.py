@@ -1,13 +1,15 @@
+from pip import req
 from setuptools import find_packages
 from setuptools import setup
-from pip import req
+import os
 
+_here = os.path.dirname(__file__)
 _install_requirements = req.parse_requirements('requirements.txt')
 
 
 setup(
     name='airlock',
-    version=open('VERSION').read().strip(),
+    version=open(os.path.join(_here, 'airlock', 'VERSION')).read().strip(),
     description=(
         'A lightweight wrapper providing Google OAuth2 integration, sessions, '
         'XSRF validators, and user management for App Engine apps.'
