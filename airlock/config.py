@@ -59,6 +59,8 @@ def set_config(config):
     config['webapp2_extras.auth']['token_max_age'] = Defaults.Xsrf.TOKEN_AGE
   if 'token_new_age' not in config['webapp2_extras.auth']:
     config['webapp2_extras.auth']['token_new_age'] = Defaults.Xsrf.TOKEN_AGE
+  if 'airlock_path' not in config:
+    config['airlock_path'] = '/_airlock'
   global _airlock_config
   _airlock_config = config
 

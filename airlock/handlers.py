@@ -65,7 +65,7 @@ class BaseHandler(object):
     decorator = appengine.oauth2decorator_from_clientsecrets(
         client_secrets_path,
         scope=self.config.get('scopes', config.Defaults.OAUTH_SCOPES))
-    decorator._callback_path = '/_airlock/oauth2callback'
+    decorator._callback_path = '{}/oauth2callback'.format(self.config['airlock_path'])
     return decorator
 
   @webapp2.cached_property
@@ -77,16 +77,16 @@ class BaseHandler(object):
     hsts_policy = policies.get('hsts', config.Defaults.Policies.HSTS)
     if self.request.scheme.lower() == 'https' and hsts_policy is not None:
       include_subdomains = bool(hsts_policy.get('includeSubdomains', False))
-      subdomain = '; includeSubdomains' if include_subdomains else ''
-      hsts_value = 'max-age=%d%s' % (int(hsts_policy.get('max_age')), subdomain)
+      hsts_value = 'max-age=%d' % int(hsts_policy.get('max_age'))
+      if include_subdomains:
+        hsts_value = '{}{}'.format(hsts_value, '; includeSubdomains')
       headers['Strict-Transport-Security'] = hsts_value
-    frame_options_policy = policies.get('frame_options',
-                                        config.Defaults.XFrameOptions.SAMEORIGIN)
+    frame_options_policy = bool(
+        policies.get('frame_options', config.Defaults.XFrameOptions.SAMEORIGIN))
     if frame_options_policy is not None:
       headers['X-Frame-Options'] = frame_options_policy
     headers['X-XSS-Protection'] = '1; mode=block'
     headers['X-Content-Type-Options'] = 'nosniff'
-
     if 'csp' in policies and 'policy' in policies['csp']:
       csp_policy = policies['csp']
       policies = policies['csp']['policy']

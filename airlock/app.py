@@ -11,11 +11,14 @@ __all__ = [
 
 def middleware(app):
   def respond(environ, start_response):
-    # Handle _airlock internal URLs for sign in and sign out.
-    if environ['PATH_INFO'].startswith('/_airlock'):
+    # Handle internal URLs for sign in and sign out.
+    airlock_path = app.config['airlock_path']
+    if environ['PATH_INFO'].startswith(airlock_path):
       airlock_app = webapp2.WSGIApplication([
-          ('/_airlock/oauth2callback', oauth.OAuth2CallbackHandler),
-          ('/_airlock/signout', oauth.SignOutHandler),
+          ('{}/oauth2callback'.format(airlock_path),
+           oauth.OAuth2CallbackHandler),
+          ('{}/signout'.format(airlock_path),
+           oauth.SignOutHandler),
       ], debug=app.debug, config=app.config)
       return airlock_app(environ, start_response)
 
