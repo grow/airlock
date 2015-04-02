@@ -81,8 +81,8 @@ class BaseHandler(object):
       if include_subdomains:
         hsts_value = '{}{}'.format(hsts_value, '; includeSubdomains')
       headers['Strict-Transport-Security'] = hsts_value
-    frame_options_policy = bool(
-        policies.get('frame_options', config.Defaults.XFrameOptions.SAMEORIGIN))
+    frame_options_policy = \
+        policies.get('frame_options', config.Defaults.XFrameOptions.SAMEORIGIN)
     if frame_options_policy is not None:
       headers['X-Frame-Options'] = frame_options_policy
     headers['X-XSS-Protection'] = '1; mode=block'
