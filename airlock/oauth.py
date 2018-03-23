@@ -87,4 +87,8 @@ class SignOutHandler(handlers.Handler):
       token = str(self.request.get('token'))
       xsrfutil.validate_token(key, token, self.me.user_id(), action_id=redirect_url)
       self.auth.unset_session()
+    # Avoid data: URI redirects.
+    if not redirect_url.startswith(('http://', 'https://', '/')):
+      self.abort(404)
+      return
     self.redirect(redirect_url)
