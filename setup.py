@@ -5,12 +5,14 @@ import pip
 
 try: # for pip >= 10
     from pip._internal.req import parse_requirements
+    from pip._internal.download import PipSession
 except ImportError: # for pip <= 9.0.3
     from pip.req import parse_requirements
+    from pip.download import PipSession
 
 _here = os.path.dirname(__file__)
 _install_requirements = parse_requirements(
-    'requirements.txt', session=pip.download.PipSession())
+    'requirements.txt', session=PipSession())
 
 
 setup(
